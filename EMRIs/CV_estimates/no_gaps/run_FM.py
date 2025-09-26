@@ -12,10 +12,10 @@ import numpy as np
 from stableemrifisher.fisher import StableEMRIFisher
 from few.utils.constants import YRSID_SI
 from lisagap import GapMaskGenerator, GapWindowGenerator
-from window_func_info import gap_definitions, taper_defs
+from window_func_info import (gap_definitions, taper_defs, 
+                              include_planned, include_unplanned, 
+                              planned_seed, unplanned_seed)
 
-planned_seed = 1234
-unplanned_seed = 4321
 
 import sys
 sys.path.append("../..")
@@ -25,8 +25,22 @@ if cp is not None:
     xp = cp
 else:
     xp = np
+
+# User settings
+NO_MASK = False
+MASK = True
 WINDOW = False
 
+gap_info = {
+    'planned_seed': planned_seed,
+    'unplanned_seed': unplanned_seed,
+    'include_planned': include_planned,
+    'include_unplanned': include_unplanned,
+    'apply_tapering': False,
+    'WINDOW': WINDOW,
+    'gap_definitions': gap_definitions,
+    'taper_definitions': taper_defs
+}
 ONE_HOUR = 60 * 60
 xI0 = 1.0
 # ================== CASE 1 PARAMETERS ======================
@@ -69,15 +83,20 @@ gap_mask_gen = GapMaskGenerator(sim_t,
 
 gap_window_func = GapWindowGenerator(gap_mask_gen)
 
-gap_window_array = gap_window_func.generate_window(include_planned=True, 
-                                                   include_unplanned=False, 
-                                                   apply_tapering=False, 
-                                                   taper_definitions=taper_defs)
 
-if WINDOW:
-    gap_window_array = xp.asarray(gap_window_array) # Convert to relevant array type
-else:
-    gap_window_array = xp.ones(len(gap_window_array)) # No window at all
+if NO_MASK:
+    gap_window_array = xp.ones(len(sim_t)) # No window at all
+elif MASK:
+    gap_window_array = xp.asarray(gap_window_func.generate_window(include_planned=include_planned, 
+                                                   include_unplanned=include_unplanned, 
+                                                   apply_tapering=False, 
+                                                   taper_definitions=taper_defs))
+elif WINDOW:
+    gap_window_array = xp.asarray(gap_window_func.generate_window(include_planned=include_planned, 
+                                                   include_unplanned=include_unplanned, 
+                                                   apply_tapering=True, 
+                                                   taper_definitions=taper_defs))
+
 ####=======================True Responsed waveform==========================
 # waveform class setup
 waveform_class = FastKerrEccentricEquatorialFlux
@@ -184,7 +203,7 @@ print("Computing FM")
 # Compute the fisher matrix
 derivs, fisher_matrix = sef(emri_params, 
                             param_names=param_names, 
-                            live_dangerously = True, 
+                            live_dangerously = False, 
                             delta_range=delta_range,
                             window = gap_window_array)
 
@@ -200,18 +219,14 @@ for k, item in enumerate(param_names):
     )
 
 # After you generate your gap window
-gap_info = {
-    'planned_seed': planned_seed,
-    'unplanned_seed': unplanned_seed,
-    'include_planned': True,
-    'include_unplanned': False,
-    'apply_tapering': False,
-    'WINDOW': WINDOW,
-    'gap_definitions': gap_definitions,
-    'taper_definitions': taper_defs
-}
 
-filename = "Fisher_Matrix_Case_1.h5"
+if NO_MASK:
+    filename = "Fisher_Matrix_Case_1_no_window.h5"
+elif MASK:
+    filename = "Fisher_Matrix_Case_1_w_mask.h5"
+    filename = "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
+elif WINDOW:
+    filename = "Fisher_Matrix_Case_1_w_window.h5"
 save_fisher_results_to_hdf5(
     filename, 
     param_cov, 

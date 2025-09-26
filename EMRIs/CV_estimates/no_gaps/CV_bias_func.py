@@ -196,7 +196,7 @@ def _apply_window_to_noise(noise_freq, window_function, xp):
     
     for channel in range(n_channels):
         # Transform to time domain
-        noise_time = xp.fft.irfft(noise_freq[channel])
+        noise_time = xp.fft.irfft(noise_freq[channel], n = len(window_function))
         
         # Ensure window and noise have compatible shapes
         if len(window_function) != len(noise_time):
