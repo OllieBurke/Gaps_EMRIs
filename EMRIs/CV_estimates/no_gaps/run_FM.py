@@ -12,6 +12,7 @@ import numpy as np
 from stableemrifisher.fisher import StableEMRIFisher
 from few.utils.constants import YRSID_SI
 from lisagap import GapMaskGenerator, GapWindowGenerator
+from stableemrifisher.noise import load_psd_from_file, write_psd_file
 from window_func_info import (gap_definitions, taper_defs, 
                               include_planned, include_unplanned, 
                               planned_seed, unplanned_seed)
@@ -20,6 +21,8 @@ from window_func_info import (gap_definitions, taper_defs,
 import sys
 sys.path.append("../..")
 from utility_funcs.hdf5_file_management import save_fisher_results_to_hdf5, cp
+
+noise_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/noise/"
 # ================== My own settings ========================
 if cp is not None:
     xp = cp
@@ -27,8 +30,8 @@ else:
     xp = np
 
 # User settings
-NO_MASK = False
-MASK = True
+NO_MASK = True
+MASK = False
 WINDOW = False
 
 gap_info = {
@@ -97,6 +100,16 @@ elif WINDOW:
                                                    apply_tapering=True, 
                                                    taper_definitions=taper_defs))
 
+
+PSD_filename = "tdi2_AE_w_background.npy"
+kwargs_PSD = {"stochastic_params": [T*YRSID_SI]} # We include the background
+
+write_PSD = write_psd_file(model='scirdv1', channels='AE', 
+                           tdi2=True, include_foreground=True, 
+                           filename = noise_direc + PSD_filename, **kwargs_PSD)
+
+PSD_A_interp = load_psd_from_file(noise_direc + PSD_filename, xp=cp)
+
 ####=======================True Responsed waveform==========================
 # waveform class setup
 waveform_class = FastKerrEccentricEquatorialFlux
@@ -150,6 +163,7 @@ Ndelta = 8  # Check 8 possible delta values to check convergence of derivatives
 # extracts relevant noise model from information provided to tdi_kwargs.
 
 # Initialise fisher matrix
+breakpoint()
 sef = StableEMRIFisher(
     # Set up waveform class
     waveform_class=waveform_class,
@@ -160,6 +174,8 @@ sef = StableEMRIFisher(
     # Set up response
     ResponseWrapper=ResponseWrapper,
     ResponseWrapper_kwargs=ResponseWrapper_kwargs,
+    # Set up noise model
+    noise_model = PSD_A_interp,
     stats_for_nerds=True,  # Output useful information governing stability
     use_gpu=USE_GPU,  # select whether or not to use gpu
     der_order=der_order,  # derivative order
@@ -201,11 +217,12 @@ delta_range = dict(
 
 print("Computing FM")
 # Compute the fisher matrix
+breakpoint()
 derivs, fisher_matrix = sef(emri_params, 
                             param_names=param_names, 
                             live_dangerously = False, 
                             delta_range=delta_range,
-                            window = gap_window_array)
+                            window = None)
 
 # Compute paramter covariance matrix
 param_cov = np.linalg.inv(fisher_matrix)
