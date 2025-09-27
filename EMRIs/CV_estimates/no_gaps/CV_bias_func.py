@@ -2,8 +2,10 @@ import numpy as np
 try:
     import cupy as cp
     CUPY_AVAILABLE = True
+    xp = cp
 except ImportError:
     cp = None
+    cp = np
     CUPY_AVAILABLE = False
 
 # Handle array backend selection
@@ -76,7 +78,7 @@ def inner_product_frequency_domain(a_fft, b_fft, variance_noise_f, n_samples, dt
     return float(xp.real(normalization * total_sum))
 
 
-def generate_colored_noise(variance_noise_f, seed=0, window_function=None, return_time_domain=False):
+def generate_colored_noise(variance_noise_AET, seed=0, window_function=None, return_time_domain=False):
     """
     Generate colored noise with specified noise variance per frequency bin.
     
@@ -109,67 +111,37 @@ def generate_colored_noise(variance_noise_f, seed=0, window_function=None, retur
     - Always generates 2 channels matching your original function behavior
     """
     # Get appropriate array module  
-    xp = get_array_module(variance_noise_f)
-    
-    # Set random seed (must use numpy for consistency across backends)
-    np.random.seed(seed)
-    
+    xp = get_array_module(variance_noise_AET[0])
+     
     # Ensure variance is an array and determine shape
-    variance_noise_f = xp.asarray(variance_noise_f)
     
-    if variance_noise_f.ndim == 1:
-        # 1D variance - use same variance for both channels (like your original)
-        n_freq = len(variance_noise_f)
-        variance_both_channels = xp.array([variance_noise_f, variance_noise_f])  # Shape: (2, n_freq)
-    elif variance_noise_f.ndim == 2:
-        # 2D variance - already has channel dimension
-        variance_both_channels = variance_noise_f
-        n_freq = variance_noise_f.shape[1]
-    else:
-        raise ValueError(f"variance_noise_f must be 1D or 2D array, got {variance_noise_f.ndim}D")
-    
-    n_channels = 2  # Always generate 2 channels like your original
-    
-    # Calculate standard deviation from variance
-    std_dev = xp.sqrt(variance_both_channels)
-    
-    # Generate complex Gaussian noise for each channel
-    noise_channels = []
-    
-    for channel in range(n_channels):
-        # Generate complex noise - use numpy random then convert to maintain consistency
-        real_part = np.random.normal(0, 1, n_freq)
-        imag_part = np.random.normal(0, 1, n_freq)
-        
-        # Convert to appropriate backend and scale by std_dev
-        if xp is cp:
-            real_part = cp.asarray(real_part)
-            imag_part = cp.asarray(imag_part)
-        
-        noise_freq = (real_part + 1j * imag_part) * std_dev[channel]
-        
-        # Handle special cases for real FFT:
-        # DC component (f=0) must be real
-        noise_freq[0] = xp.sqrt(2) * noise_freq[0].real + 0j
-        
-        # Nyquist component (f=f_max) must be real  
-        noise_freq[-1] = xp.sqrt(2) * noise_freq[-1].real + 0j
-        
-        noise_channels.append(noise_freq)
-    
-    noise_array = xp.asarray(noise_channels)
+    N_channels = 2  # Always generate 2 channels like your original
+      
+
+
+    xp.random.seed(seed)
+    noise_f_AET_real = [xp.random.normal(0,xp.sqrt(variance_noise_AET[k])) for k in range(N_channels)]
+    noise_f_AET_imag = [xp.random.normal(0,xp.sqrt(variance_noise_AET[k])) for k in range(N_channels)]
+
+    # Compute noise in frequency domain
+    noise_f_AET = xp.asarray([noise_f_AET_real[k] + 1j * noise_f_AET_imag[k] for k in range(N_channels)])
+
+    for i in range(N_channels):
+        noise_f_AET[i][0] = noise_f_AET[i][0].real + 0j
+        noise_f_AET[i][-1] = noise_f_AET[i][-1].real + 0j 
+
     
     # Apply window function if provided
     if window_function is not None:
-        return _apply_window_to_noise(noise_array, window_function, xp)
+        return _apply_window_to_noise(noise_f_AET, window_function, xp)
     
     # Return based on requested domain
     if return_time_domain:
         # Convert to time domain
-        noise_time = xp.array([xp.fft.irfft(noise_array[ch]) for ch in range(n_channels)])
+        noise_time = xp.array([xp.fft.irfft(noise_f_AET[ch]) for ch in range(n_channels)])
         return noise_time
     else:
-        return noise_array
+        return noise_f_AET
 
 
 def _apply_window_to_noise(noise_freq, window_function, xp):
@@ -197,26 +169,40 @@ def _apply_window_to_noise(noise_freq, window_function, xp):
     for channel in range(n_channels):
         # Transform to time domain
         noise_time = xp.fft.irfft(noise_freq[channel], n = len(window_function))
-        
-        # Ensure window and noise have compatible shapes
-        if len(window_function) != len(noise_time):
-            min_length = min(len(window_function), len(noise_time))
-            window_trimmed = window_function[:min_length]
-            noise_trimmed = noise_time[:min_length]
-            print(f"Warning: Window length ({len(window_function)}) doesn't match "
-                  f"noise length ({len(noise_time)}). Trimming to {min_length}.")
-        else:
-            window_trimmed = window_function
-            noise_trimmed = noise_time
-        
+         
         # Apply window
-        windowed_time = window_trimmed * noise_trimmed
+        windowed_time = window_function * noise_time
         
         # Transform back to frequency domain
         windowed_freq = xp.fft.rfft(windowed_time)
         windowed_noise.append(windowed_freq)
     
     return xp.asarray(windowed_noise)
+
+# def zero_pad(data, xp = np):
+#     """
+#     Inputs: data stream of length N
+#     Returns: zero_padded data stream of new length 2^{J} for J \in \mathbb{N}
+#     """
+#     N = len(data)
+#     pow_2 = xp.ceil(np.log2(N))
+#     return xp.pad(data,(0,int((2**pow_2)-N)),'constant')
+def zero_pad(data, xp=np):
+    """
+    Inputs: data stream of length N (1D) or shape (channels, N) (2D)
+    Returns: zero_padded data stream of new length 2^{J} for J ∈ ℕ
+    """
+    if data.ndim == 1:
+        N = len(data)
+        pow_2 = xp.ceil(xp.log2(N))  # Use xp.log2 instead of np.log2
+        return xp.pad(data, (0, int((2**pow_2) - N)), 'constant')
+    elif data.ndim == 2:
+        N = data.shape[1]  # Get length from second dimension
+        pow_2 = xp.ceil(xp.log2(N))
+        pad_width = ((0, 0), (0, int((2**pow_2) - N)))  # No padding on first dim, pad second dim
+        return xp.pad(data, pad_width, 'constant')
+    else:
+        raise ValueError("Data must be 1D or 2D")
 
 # def inner_product_f(a_fft, b_fft, PSD, N, dt):
 #     return xp.real(xp.sum(xp.asarray([(4 * dt / N) * xp.sum((a_fft[j][1:] * b_fft[j][1:].conj())/PSD[j][1:]) for j in range(2)])))

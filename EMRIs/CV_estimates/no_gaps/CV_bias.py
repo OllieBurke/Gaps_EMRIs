@@ -7,11 +7,14 @@ sys.path.append("../..")
 from few.utils.constants import YRSID_SI
 from stableemrifisher.noise import write_psd_file, load_psd_from_file
 from utility_funcs.hdf5_file_management import load_fisher_results_from_hdf5, add_monte_carlo_to_existing_file, cp
-from CV_bias_func import generate_colored_noise, inner_product_frequency_domain
+from CV_bias_func import generate_colored_noise, inner_product_frequency_domain, zero_pad
 import h5py
 
 noise_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/noise/"
 FM_results_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/Fisher_Matrices/" 
+
+
+
 if cp is None:
     xp = np
     return_as_cupy = False
@@ -20,9 +23,9 @@ else:
     return_as_cupy = True
 
 # User settings
-NO_MASK = False
+NO_MASK = True
 MASK = False
-WINDOW = True
+WINDOW = False
 
 # Load in Fisher matrix results
 if NO_MASK:
@@ -41,6 +44,8 @@ T = fisher_results['observation_parameters']['observation_time_years']
 gap_window_func = fisher_results['gap_analysis']['window_function']
 EMRI_parameters = fisher_results['emri_parameters']
 
+derivs_pad = [zero_pad(derivs[j]) for j in range(len(derivs))]
+
 if NO_MASK:
     gap_window_func = None
 # Define the EMRI_parameters
@@ -50,32 +55,36 @@ Fisher_EMRI_params.pop("Phi_theta0", None)
 
 Fisher_EMRI_param_values = xp.asarray(list(Fisher_EMRI_params.values()))
 
-N = derivs[0].shape[-1]
+N = derivs_pad[0].shape[-1]
 freq_bin = np.fft.rfftfreq(N, dt)
 freq_bin[0] = freq_bin[1]
 
-PSD_filename = "tdi2_AE_w_background.npy"
-kwargs_PSD = {"stochastic_params": [T*YRSID_SI]} # We include the background
 
-write_PSD = write_psd_file(model='scirdv1', channels='AE', 
-                           tdi2=True, include_foreground=True, 
-                           filename = noise_direc + PSD_filename, **kwargs_PSD)
+PSD_filename = "tdi2_AE_w_background.npy"
 
 PSD_AE_interp = load_psd_from_file(noise_direc + PSD_filename, xp=cp)
 
 PSD = PSD_AE_interp(freq_bin)
 
-variance_noise_f = N * PSD[0] / (4*dt)
-derivs_f = [xp.fft.rfft(derivs[j]) for j in range(0,len(derivs))]
+derivs_f = [xp.fft.rfft(derivs_pad[j]) for j in range(0,len(derivs_pad))]
 
-noise_MLE_vec = []
+# Compute Variance and build noise realisation
+N_channels = 2
+variance_noise_AET = [N * PSD[k] / (4*dt) for k in range(N_channels)]
 
-N_total = 1000
+for i in range(N_channels):
+    variance_noise_AET[i][0] = 2*variance_noise_AET[i][0]
+    variance_noise_AET[i][-1] = 2*variance_noise_AET[i][-1]
+
+
+N_total = 10000
 seeds_used = np.arange(0,N_total,1)
+noise_MLE_vec = []
 for i in tqdm(seeds_used):
 
-    noise_f = generate_colored_noise(variance_noise_f, seed = i, window_function = gap_window_func, return_time_domain=False)
+    noise_f = generate_colored_noise(variance_noise_AET, seed = i, window_function = gap_window_func, return_time_domain=False)
 
+    breakpoint()
     bias_vec = xp.asarray([inner_product_frequency_domain(derivs_f[j], noise_f, PSD, N, dt) for j in range(0,len(derivs))])
 
     noise_MLE = Fisher_EMRI_param_values + param_cov @ bias_vec 
