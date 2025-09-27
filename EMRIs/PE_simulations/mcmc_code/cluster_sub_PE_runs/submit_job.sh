@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#SBATCH --job-name=light_dt_0p5
+#SBATCH --job-name=seed_0
 #SBATCH --output=output_logs/output_%j.out
 #SBATCH --error=error_logs/error_%j.err
 #SBATCH --account=lisa
@@ -18,6 +18,6 @@ module unload conda
 module load conda
 conda activate few_fisher 
 module load cuda/12.4.1
-python /home/ad/burkeol/work/KerrEccentricEquatorialFigures/scripts/Results/PE_studies/mcmc_code/mcmc_run_kerr.py
+python /home/ad/burkeol/work/Gaps_EMRIs/EMRIs/PE_simulations/mcmc_code/mcmc_run.py
 
 
