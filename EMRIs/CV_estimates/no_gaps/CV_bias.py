@@ -7,7 +7,7 @@ sys.path.append("../..")
 from few.utils.constants import YRSID_SI
 from stableemrifisher.noise import write_psd_file, load_psd_from_file
 from utility_funcs.hdf5_file_management import load_fisher_results_from_hdf5, add_monte_carlo_to_existing_file, cp
-from CV_bias_func import generate_colored_noise, inner_product_frequency_domain, zero_pad
+from CV_bias_func import generate_colored_noise, inner_product_frequency_domain, zero_pad, pad_to_length
 import h5py
 
 noise_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/noise/"
@@ -23,15 +23,17 @@ else:
     return_as_cupy = True
 
 # User settings
-NO_MASK = True
-MASK = False
+NO_MASK = False
+MASK = True
 WINDOW = False
 
 # Load in Fisher matrix results
 if NO_MASK:
     filename = FM_results_direc + "Fisher_Matrix_Case_1_no_window.h5"
 elif MASK:
-    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_antenna.h5"
+    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_full_shamalama.h5"
 elif WINDOW:
     filename = FM_results_direc + "Fisher_Matrix_Case_1_w_window.h5"
     # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
@@ -46,8 +48,8 @@ EMRI_parameters = fisher_results['emri_parameters']
 
 derivs_pad = [zero_pad(derivs[j]) for j in range(len(derivs))]
 
-if NO_MASK:
-    gap_window_func = None
+# if NO_MASK:
+#     gap_window_func = None
 # Define the EMRI_parameters
 Fisher_EMRI_params = EMRI_parameters.copy()
 Fisher_EMRI_params.pop("xI0", None)  # None as default if key doesn't exist
@@ -56,6 +58,8 @@ Fisher_EMRI_params.pop("Phi_theta0", None)
 Fisher_EMRI_param_values = xp.asarray(list(Fisher_EMRI_params.values()))
 
 N = derivs_pad[0].shape[-1]
+gap_window_pad = pad_to_length(gap_window_func, N, pad_value=1.0, pad_mode='end', use_gpu=True)
+
 freq_bin = np.fft.rfftfreq(N, dt)
 freq_bin[0] = freq_bin[1]
 
@@ -82,9 +86,8 @@ seeds_used = np.arange(0,N_total,1)
 noise_MLE_vec = []
 for i in tqdm(seeds_used):
 
-    noise_f = generate_colored_noise(variance_noise_AET, seed = i, window_function = gap_window_func, return_time_domain=False)
+    noise_f = generate_colored_noise(variance_noise_AET, seed = i, window_function = gap_window_pad, return_time_domain=False)
 
-    breakpoint()
     bias_vec = xp.asarray([inner_product_frequency_domain(derivs_f[j], noise_f, PSD, N, dt) for j in range(0,len(derivs))])
 
     noise_MLE = Fisher_EMRI_param_values + param_cov @ bias_vec 

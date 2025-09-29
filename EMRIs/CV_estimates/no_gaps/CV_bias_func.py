@@ -204,6 +204,132 @@ def zero_pad(data, xp=np):
     else:
         raise ValueError("Data must be 1D or 2D")
 
+def pad_to_length(array, N_t, pad_value=0.0, pad_mode='end', use_gpu=False):
+    """
+    Pad a gap_window_generator array (or any array) to a desired length N_t.
+    
+    This function is GPU and CPU agnostic, handling both numpy and cupy arrays
+    depending on the use_gpu flag and availability of cupy.
+    
+    Parameters
+    ----------
+    array : numpy.ndarray or cupy.ndarray
+        Input array to be padded. Can be 1D or 2D.
+        For 2D arrays, padding is applied along the last axis (time axis).
+    N_t : int
+        Target length for the array after padding.
+    pad_value : float, optional
+        Value to use for padding. Default is 0.0.
+        For gap masks, you might want to use 1.0 (valid data) or 0.0 (gap).
+    pad_mode : str, optional
+        Where to add padding. Options:
+        - 'end': Add padding at the end (default)
+        - 'start': Add padding at the beginning  
+        - 'both': Add padding symmetrically on both sides
+    use_gpu : bool, optional
+        Whether to use GPU acceleration with cupy. Default is False.
+        If True but cupy is not available, falls back to numpy with a warning.
+        
+    Returns
+    -------
+    numpy.ndarray or cupy.ndarray
+        Padded array of length N_t (or shape [..., N_t] for 2D arrays).
+        Returns same type as input (numpy/cupy) unless use_gpu is specified.
+        
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from gap_window_generator import GapWindowGenerator
+    >>> 
+    >>> # Create a simple gap mask
+    >>> mask = np.ones(100)
+    >>> mask[40:60] = 0  # Add a gap
+    >>> 
+    >>> # Pad to desired length
+    >>> padded_mask = pad_to_length(mask, N_t=128, pad_value=1.0)
+    >>> print(f"Original length: {len(mask)}, Padded length: {len(padded_mask)}")
+    >>> 
+    >>> # For 2D arrays (multiple channels)
+    >>> mask_2d = np.ones((2, 100))
+    >>> mask_2d[:, 40:60] = 0
+    >>> padded_mask_2d = pad_to_length(mask_2d, N_t=128)
+    >>> print(f"Original shape: {mask_2d.shape}, Padded shape: {padded_mask_2d.shape}")
+    >>> 
+    >>> # GPU usage (if available)
+    >>> padded_mask_gpu = pad_to_length(mask, N_t=128, use_gpu=True)
+    
+    Raises
+    ------
+    ValueError
+        If N_t is smaller than the current array length and truncation would be needed.
+    ValueError
+        If pad_mode is not one of the supported options.
+    """
+    
+    # Determine array library to use
+    if use_gpu and CUPY_AVAILABLE:
+        xp = cp
+        # Convert input to cupy if it's numpy
+        if isinstance(array, np.ndarray):
+            array = cp.asarray(array)
+    else:
+        xp = np
+        if use_gpu and not CUPY_AVAILABLE:
+            print("Warning: cupy not available, falling back to numpy")
+        # Convert input to numpy if it's cupy
+        if CUPY_AVAILABLE and isinstance(array, cp.ndarray):
+            array = array.get()
+    
+    # Validate inputs
+    if not isinstance(N_t, int) or N_t <= 0:
+        raise ValueError("N_t must be a positive integer")
+    
+    if pad_mode not in ['end', 'start', 'both']:
+        raise ValueError("pad_mode must be one of: 'end', 'start', 'both'")
+    
+    # Handle 1D and 2D arrays
+    array = xp.atleast_1d(array)
+    
+    if array.ndim == 1:
+        current_length = len(array)
+    elif array.ndim == 2:
+        current_length = array.shape[1]  # Assume time is last axis
+    else:
+        raise ValueError("Only 1D and 2D arrays are supported")
+    
+    # Check if padding is needed
+    if current_length == N_t:
+        return array
+    elif current_length > N_t:
+        raise ValueError(f"Array length {current_length} is greater than target N_t={N_t}. "
+                        f"Truncation not supported. Consider using array[:N_t] if truncation is desired.")
+    
+    # Calculate padding needed
+    pad_needed = N_t - current_length
+    
+    # Determine padding distribution
+    if pad_mode == 'end':
+        pad_left = 0
+        pad_right = pad_needed
+    elif pad_mode == 'start':
+        pad_left = pad_needed
+        pad_right = 0
+    elif pad_mode == 'both':
+        pad_left = pad_needed // 2
+        pad_right = pad_needed - pad_left
+    
+    # Create padding arrays
+    if array.ndim == 1:
+        left_pad = xp.full(pad_left, pad_value, dtype=array.dtype)
+        right_pad = xp.full(pad_right, pad_value, dtype=array.dtype)
+        padded_array = xp.concatenate([left_pad, array, right_pad])
+    else:  # 2D array
+        n_channels = array.shape[0]
+        left_pad = xp.full((n_channels, pad_left), pad_value, dtype=array.dtype)
+        right_pad = xp.full((n_channels, pad_right), pad_value, dtype=array.dtype)
+        padded_array = xp.concatenate([left_pad, array, right_pad], axis=1)
+    
+    return padded_array
 # def inner_product_f(a_fft, b_fft, PSD, N, dt):
 #     return xp.real(xp.sum(xp.asarray([(4 * dt / N) * xp.sum((a_fft[j][1:] * b_fft[j][1:].conj())/PSD[j][1:]) for j in range(2)])))
 

@@ -30,10 +30,18 @@ else:
     xp = np
 
 # User settings
-NO_MASK = True
-MASK = False
+NO_MASK = False
+MASK = True
 WINDOW = False
-
+if NO_MASK:
+    filename = "Fisher_Matrix_Case_1_no_window.h5"
+elif MASK:
+    # filename = "Fisher_Matrix_Case_1_w_mask_antenna.h5"
+    # filename = "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
+    filename = "Fisher_Matrix_Case_1_w_mask_big_gaps.h5"
+    # filename = "Fisher_Matrix_Case_1_w_mask_full_shamalama.h5"
+elif WINDOW:
+    filename = "Fisher_Matrix_Case_1_w_window.h5"
 gap_info = {
     'planned_seed': planned_seed,
     'unplanned_seed': unplanned_seed,
@@ -100,7 +108,7 @@ elif WINDOW:
                                                    apply_tapering=True, 
                                                    taper_definitions=taper_defs))
 
-
+breakpoint()
 PSD_filename = "tdi2_AE_w_background.npy"
 kwargs_PSD = {"stochastic_params": [T*YRSID_SI]} # We include the background
 
@@ -163,7 +171,6 @@ Ndelta = 8  # Check 8 possible delta values to check convergence of derivatives
 # extracts relevant noise model from information provided to tdi_kwargs.
 
 # Initialise fisher matrix
-breakpoint()
 sef = StableEMRIFisher(
     # Set up waveform class
     waveform_class=waveform_class,
@@ -217,13 +224,12 @@ delta_range = dict(
 
 print("Computing FM")
 # Compute the fisher matrix
-breakpoint()
 derivs, fisher_matrix = sef(emri_params, 
                             param_names=param_names, 
                             live_dangerously = False, 
                             delta_range=delta_range,
-                            window = None)
-
+                            window = gap_window_array)
+breakpoint()
 # Compute paramter covariance matrix
 param_cov = np.linalg.inv(fisher_matrix)
 
@@ -237,13 +243,7 @@ for k, item in enumerate(param_names):
 
 # After you generate your gap window
 
-if NO_MASK:
-    filename = "Fisher_Matrix_Case_1_no_window.h5"
-elif MASK:
-    filename = "Fisher_Matrix_Case_1_w_mask.h5"
-    filename = "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
-elif WINDOW:
-    filename = "Fisher_Matrix_Case_1_w_window.h5"
+
 save_fisher_results_to_hdf5(
     filename, 
     param_cov, 
