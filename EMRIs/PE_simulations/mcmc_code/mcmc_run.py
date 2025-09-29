@@ -45,7 +45,7 @@ import sys
 sys.path.append("/home/ad/burkeol/work/Gaps_EMRIs/EMRIs")
 from utility_funcs.hdf5_file_management import load_fisher_results_from_hdf5, add_monte_carlo_to_existing_file, cp
 sys.path.append("/home/ad/burkeol/work/Gaps_EMRIs/EMRIs/CV_estimates/no_gaps/")
-from CV_bias_func import generate_colored_noise, inner_product_frequency_domain
+from CV_bias_func import generate_colored_noise, inner_product_frequency_domain, pad_to_length
 
 if cp is None:
     xp = np
@@ -58,17 +58,21 @@ noise_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/noise/"
 FM_results_direc = "/work/scratch/data/burkeol/Gaps_EMRIs/Fisher_Matrices/" 
 
 # User settings
-NO_MASK = True
-MASK = False
+NO_MASK = False
+MASK = True
 WINDOW = False
 
-seed_number = 1
+seed_number = 0
 
 # Load in Fisher matrix results
 if NO_MASK:
     filename = FM_results_direc + "Fisher_Matrix_Case_1_no_window.h5"
 elif MASK:
-    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_antenna.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
+    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_big_gaps.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_full_shamalama.h5"
 elif WINDOW:
     filename = FM_results_direc + "Fisher_Matrix_Case_1_w_window.h5"
     # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
@@ -170,7 +174,7 @@ def llike(params):
     EMRI_AET_w_pad_prop = [zero_pad(waveform_prop[i]) for i in range(N_channels)]
 
     # Compute in frequency domain
-    EMRI_AET_fft_prop = [xp.fft.rfft(item) for item in EMRI_AET_w_pad_prop]
+    EMRI_AET_fft_prop = [xp.fft.rfft(gap_window_pad * item) for item in EMRI_AET_w_pad_prop]
 
     # Compute (d - h| d- h)
     diff_f_AET = [data_f_AET[k] - EMRI_AET_fft_prop[k] for k in range(N_channels)]
@@ -260,11 +264,13 @@ Kerr_TDI_waveform_unnormed = EMRI_TDI_Model(*params_unnormed) # Inject waveform 
 
 # Taper and then zero_pad signal
 Kerr_FEW_TDI_pad_unnormed = [zero_pad(Kerr_TDI_waveform_unnormed[i]) for i in range(N_channels)]
-
 N_t = len(Kerr_FEW_TDI_pad_unnormed[0])
 
+gap_window_pad = pad_to_length(gap_window_func, N_t, pad_value=1.0, pad_mode='end', use_gpu=True)
+
+
 # Compute signal in frequency domain
-Kerr_TDI_fft = xp.asarray([xp.fft.rfft(waveform) for waveform in Kerr_FEW_TDI_pad_unnormed])
+Kerr_TDI_fft = xp.asarray([xp.fft.rfft(gap_window_pad*waveform) for waveform in Kerr_FEW_TDI_pad_unnormed])
 
 freq = xp.fft.rfftfreq(N_t,delta_t)
 freq[0] = freq[1]   # To "retain" the zeroth frequency
@@ -317,7 +323,13 @@ for i in range(N_channels):
     noise_f_AET[i][0] = noise_f_AET[i][0].real + 0j
     noise_f_AET[i][-1] = noise_f_AET[i][-1].real + 0j
 
-data_f_AET = Kerr_TDI_fft + 1*noise_f_AET   # define the data
+if MASK or WINDOW:
+    noise_t_AET = [xp.fft.irfft(noise_f_AET[k]) for k in range (N_channels)]
+    noise_t_AET_gap = [noise_t_AET[k]*gap_window_pad for k in range(N_channels)]
+    noise_f_AET_gap = xp.asarray([xp.fft.rfft(noise_t_AET[k]) for k in range(N_channels)])
+    data_f_AET = Kerr_TDI_fft + 1*noise_f_AET_gap
+else:
+    data_f_AET = Kerr_TDI_fft + 1*noise_f_AET   # define the data
 
 
 ##===========================MCMC Settings============================
@@ -418,7 +430,10 @@ else:
 os.chdir('/work/scratch/data/burkeol/Gaps_EMRIs/MCMC/Exploratory_Runs/')
 # Paper run -- EMRI
 # Case 1 in table
-fp = f"MCMC_samps_M_1e6_mu_10_a_0p998_e0_0p73_p0_7p7275_e0_0p73_pro_SNR_50_dt_5_T_2_recov_eps_1e-5_w_noise_seed_{seed_number}_no_gap_TDI2_w_background_equal_arms.h5"
+# fp = f"MCMC_samps_M_1e6_mu_10_a_0p998_e0_0p73_p0_7p7275_e0_0p73_pro_SNR_50_dt_5_T_2_recov_eps_1e-5_w_noise_seed_{seed_number}_no_gap_TDI2_w_background_equal_arms.h5"
+# fp = f"MCMC_samps_M_1e6_mu_10_a_0p998_e0_0p73_p0_7p7275_e0_0p73_pro_SNR_50_dt_5_T_2_recov_eps_1e-5_w_noise_seed_{seed_number}_w_mask_antenna_TDI2_w_background_equal_arms.h5"
+fp = f"MCMC_samps_M_1e6_mu_10_a_0p998_e0_0p73_p0_7p7275_e0_0p73_pro_SNR_50_dt_5_T_2_recov_eps_1e-5_w_noise_seed_{seed_number}_w_mask_big_gaps_TDI2_w_background_equal_arms.h5"
+# fp = f"MCMC_samps_M_1e6_mu_10_a_0p998_e0_0p73_p0_7p7275_e0_0p73_pro_SNR_50_dt_5_T_2_recov_eps_1e-5_w_noise_seed_{seed_number}_w_mask_full_shamalama_TDI2_w_background_equal_arms.h5"
 backend = HDFBackend(fp)
 
 ensemble = EnsembleSampler(
