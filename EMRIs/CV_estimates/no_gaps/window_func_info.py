@@ -26,32 +26,56 @@ ONE_HOUR = 60*60
 # planned_seed = 1234
 # unplanned_seed = 4321
 
+#========================== Case 2 ========================
+# gap_definitions = {
+#     "planned": {
+#         "antenna repointing": {"rate_per_year": 26, "duration_hr": 3.3},
+#     },
+#     "unplanned": {
+#         "PAAM": {"rate_per_year": 1095, "duration_hr": 0.027777},
+#     }
+# }
 
+# # Set up taper information
+
+# taper_defs = {
+#     "planned": {
+#         "antenna repointing": {"lobe_lengths_hr": ONE_HOUR}
+#     },
+#     "unplanned": {
+#         "PAAM": {"lobe_lengths_hr": 30/ONE_HOUR},
+#     }
+# }
+
+# include_planned=False
+# include_unplanned=True
+# planned_seed = 1234
+# unplanned_seed = 4321
 # =================== CASE 2 ==============================
-gap_definitions = {
-    "planned": {
-        "antenna repointing": {"rate_per_year": 10, "duration_hr": 10*24},
-    },
-    "unplanned": {
-        "PAAM": {"rate_per_year": 1095, "duration_hr": 0.027777},
-    }
-}
+# gap_definitions = {
+#     "planned": {
+#         "antenna repointing": {"rate_per_year": 10, "duration_hr": 10*24},
+#     },
+#     "unplanned": {
+#         "PAAM": {"rate_per_year": 1095, "duration_hr": 0.027777},
+#     }
+# }
 
-# Set up taper information
+# # Set up taper information
 
-taper_defs = {
-    "planned": {
-        "antenna repointing": {"lobe_lengths_hr": ONE_HOUR}
-    },
-    "unplanned": {
-        "PAAM": {"lobe_lengths_hr": 30/ONE_HOUR},
-    }
-}
+# taper_defs = {
+#     "planned": {
+#         "antenna repointing": {"lobe_lengths_hr": ONE_HOUR}
+#     },
+#     "unplanned": {
+#         "PAAM": {"lobe_lengths_hr": 30/ONE_HOUR},
+#     }
+# }
 
-include_planned=True
-include_unplanned=None
-planned_seed = 1234
-unplanned_seed = 4321
+# include_planned=True
+# include_unplanned=None
+# planned_seed = 1234
+# unplanned_seed = 4321
 
 
 # =================== Full Shamalama ==============================
@@ -92,3 +116,43 @@ unplanned_seed = 4321
 # include_unplanned=True
 # planned_seed = 1234
 # unplanned_seed = 4321
+
+# =================== Full Shamalama with spice ==============================
+gap_definitions = {
+    "planned": {
+        "antenna repointing": {"rate_per_year": 26, "duration_hr": 3.3},
+        "TM stray potential": {"rate_per_year": 2, "duration_hr": 24},
+        "TTL calibration": {"rate_per_year": 4, "duration_hr": 48},
+        "PAAM": {"rate_per_year": 1095, "duration_hr": 100/60/60}
+    },
+    "unplanned": {
+        "platform safe mode": {"rate_per_year": 3, "duration_hr": 60},
+        "payload safe mode": {"rate_per_year": 4, "duration_hr": 66},
+        "QPD loss micrometeoroid": {"rate_per_year": 5, "duration_hr": 24},
+        "HR GRS loss micrometeoroid": {"rate_per_year": 19, "duration_hr": 24},
+        "WR GRS loss micrometeoroid": {"rate_per_year": 6, "duration_hr": 24},
+    }
+}
+
+# Set up taper information
+
+taper_defs = {
+    "planned": {
+        "antenna repointing": {"lobe_lengths_hr": 10/60},
+        "TM stray potential": {"lobe_lengths_hr": 10/60},
+        "TTL calibration": {"lobe_lengths_hr": 10/60},
+        "PAAM": {"lobe_lengths_hr": 0.0},
+    },
+    "unplanned": {
+        "platform safe mode": {"lobe_lengths_hr": 10/60},
+        "payload safe mode": {"lobe_lengths_hr": 10/60},
+        "QPD loss micrometeoroid": {"lobe_lengths_hr": 10/60},
+        "HR GRS loss micrometeoroid": {"lobe_lengths_hr": 10/60},
+        "WR GRS loss micrometeoroid": {"lobe_lengths_hr": 10/60},
+    }
+}
+
+include_planned=True
+include_unplanned=True
+planned_seed = 1234
+unplanned_seed = 4321
