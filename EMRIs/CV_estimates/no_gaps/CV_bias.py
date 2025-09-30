@@ -24,18 +24,21 @@ else:
 
 # User settings
 NO_MASK = False
-MASK = True
-WINDOW = False
+MASK = False
+WINDOW = True
 
 # Load in Fisher matrix results
 if NO_MASK:
     filename = FM_results_direc + "Fisher_Matrix_Case_1_no_window.h5"
 elif MASK:
     # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_antenna.h5"
-    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
     # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_full_shamalama.h5"
+    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_full_shamalama_with_spice.h5"
 elif WINDOW:
-    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_window.h5"
+    # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_window.h5"
+    filename = FM_results_direc + "Fisher_Matrix_Case_1_w_window_full_shamalama_with_spice_planned_unplanned_10min_PAAM_1_min.h5"
     # filename = FM_results_direc + "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
 
 fisher_results = load_fisher_results_from_hdf5(filename, return_as_cupy=return_as_cupy)
@@ -81,7 +84,7 @@ for i in range(N_channels):
     variance_noise_AET[i][-1] = 2*variance_noise_AET[i][-1]
 
 
-N_total = 10000
+N_total = 50000
 seeds_used = np.arange(0,N_total,1)
 noise_MLE_vec = []
 for i in tqdm(seeds_used):

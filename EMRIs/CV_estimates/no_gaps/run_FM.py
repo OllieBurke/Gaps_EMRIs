@@ -31,23 +31,27 @@ else:
 
 # User settings
 NO_MASK = False
-MASK = True
-WINDOW = False
+MASK = False
+WINDOW = True
 if NO_MASK:
     filename = "Fisher_Matrix_Case_1_no_window.h5"
 elif MASK:
     # filename = "Fisher_Matrix_Case_1_w_mask_antenna.h5"
     # filename = "Fisher_Matrix_Case_1_w_mask_PAAM_and_antenna.h5"
-    filename = "Fisher_Matrix_Case_1_w_mask_big_gaps.h5"
+    # filename = "Fisher_Matrix_Case_1_w_mask_PAAM.h5"
+    # filename = "Fisher_Matrix_Case_1_w_mask_big_gaps.h5"
     # filename = "Fisher_Matrix_Case_1_w_mask_full_shamalama.h5"
+    filename = "Fisher_Matrix_Case_1_w_mask_full_shamalama_with_spice.h5"
 elif WINDOW:
-    filename = "Fisher_Matrix_Case_1_w_window.h5"
+    # filename = "Fisher_Matrix_Case_1_w_window.h5"
+    # filename = "Fisher_Matrix_Case_1_w_window_full_shamalama_with_spice_planned_unplanned_10min_PAAM_10_sec.h5"
+    filename = "Fisher_Matrix_Case_1_w_window_full_shamalama_with_spice_planned_unplanned_10min_PAAM_1_min.h5"
 gap_info = {
     'planned_seed': planned_seed,
     'unplanned_seed': unplanned_seed,
     'include_planned': include_planned,
     'include_unplanned': include_unplanned,
-    'apply_tapering': False,
+    'apply_tapering': True,
     'WINDOW': WINDOW,
     'gap_definitions': gap_definitions,
     'taper_definitions': taper_defs
@@ -105,10 +109,11 @@ elif MASK:
 elif WINDOW:
     gap_window_array = xp.asarray(gap_window_func.generate_window(include_planned=include_planned, 
                                                    include_unplanned=include_unplanned, 
-                                                   apply_tapering=True, 
+                                                   apply_tapering=False, 
                                                    taper_definitions=taper_defs))
+    print(f"For lobes = {taper_defs['planned']['PAAM']} we find sum of window is {np.sum(gap_window_array)}")
+    # breakpoint()
 
-breakpoint()
 PSD_filename = "tdi2_AE_w_background.npy"
 kwargs_PSD = {"stochastic_params": [T*YRSID_SI]} # We include the background
 
@@ -224,12 +229,15 @@ delta_range = dict(
 
 print("Computing FM")
 # Compute the fisher matrix
+
+# rho = sef.VSNRcalc_SEF(*list(emri_params.values()),
+#                     window=gap_window_array)
+
 derivs, fisher_matrix = sef(emri_params, 
                             param_names=param_names, 
-                            live_dangerously = False, 
+                            live_dangerously = True, 
                             delta_range=delta_range,
                             window = gap_window_array)
-breakpoint()
 # Compute paramter covariance matrix
 param_cov = np.linalg.inv(fisher_matrix)
 
